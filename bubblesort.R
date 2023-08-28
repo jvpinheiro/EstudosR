@@ -7,6 +7,7 @@ numeros <- sample(
 print("Inicial:")
 print(numeros)
 
+# Percorre o vetor e ordena
 for (i in 1:length(numeros))
 {
   maior = i
