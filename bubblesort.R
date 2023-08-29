@@ -10,13 +10,17 @@ iteracoes <- 0
 
 for (i in 1:length(numeros)-iteracoes)
 {
+  maior <- numeros[i]
   for (j in 1:length(numeros))
   {
-    if (numeros[i] < numeros[j])
+    if (maior < numeros[j])
     {
       aux <- numeros[i]
       numeros[i] <- numeros[j]
       numeros[j] <- aux
+      
+      maior <- numeros[j]
+      
       print("Troca:")
       print(numeros)
     }
@@ -24,4 +28,4 @@ for (i in 1:length(numeros)-iteracoes)
   iteracoes <- iteracoes + 1
 }
 print("Ordenado:")
-print(numeros)
+print(numeros) 
