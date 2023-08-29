@@ -10,7 +10,6 @@ iteracoes <- 0
 
 for (i in 1:length(numeros)-iteracoes)
 {
-  maior <- i
   for (j in 1:length(numeros))
   {
     if (numeros[i] < numeros[j])
