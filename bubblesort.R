@@ -1,7 +1,7 @@
 # Gera números aleatórios
 numeros <- sample(
-  x <- 100,
-  size <- 100
+  x = 100,
+  size = 100
 )
 
 print("Inicial:")
