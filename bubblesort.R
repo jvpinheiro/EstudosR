@@ -1,17 +1,16 @@
 # Gera números aleatórios
 numeros <- sample(
   x = 100,
-  size = 10
+  size = 100
 )
 
 print("Inicial:")
 print(numeros)
+iteracoes = 0
 
-# Percorre o vetor e ordena
-for (i in 1:length(numeros))
+for (i in 1:length(numeros)-iteracoes)
 {
   maior = i
-  
   for (j in 1:length(numeros))
   {
     if (numeros[i] < numeros[j])
@@ -23,6 +22,7 @@ for (i in 1:length(numeros))
       print(numeros)
     }
   }
+  iteracoes <- iteracoes + 1
 }
 print("Ordenado:")
 print(numeros)
