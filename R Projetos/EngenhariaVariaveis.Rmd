@@ -1,0 +1,420 @@
+---
+title: "Data Science - Engenharia de Variáveis (Feature Engineering)"
+output: 
+  html_document: 
+  theme: cosmo
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 90% !important;
+  margin: auto;
+}
+</style>
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Preparação
+
+Pacotes para aula.
+
+```{r}
+# install.packages("corrplot", dependencies = TRUE)
+# install.packages("knitr", dependencies = TRUE)
+# install.packages("tidyverse", dependencies = TRUE)
+# install.packages("lubridate", dependencies = TRUE)
+# install.packages("readr", dependencies = TRUE)
+# install.packages("fastDummies", dependencies = TRUE)
+# install.packages("skimr", dependencies = TRUE)
+# install.packages("factoextra", dependencies = TRUE)
+
+# Carrega pacote
+library(corrplot)
+library(knitr)
+library(tidyverse)
+library(lubridate)
+library(readr)
+library(fastDummies)
+library(skimr)
+library(factoextra)
+library(cluster)
+```
+
+## Carregamento e tratamentos iniciais
+
+### Base de dados
+
+Customer Shopping Dataset - Retail Sales Data
+
+Fonte: https://www.kaggle.com/datasets/mehmettahiraslan/customer-shopping-dataset
+
+#### Context
+
+Welcome to the shopping world of Istanbul! Our dataset contains shopping information from 10 different shopping malls between 2021 and 2023. We have gathered data from various age groups and genders to provide a comprehensive view of shopping habits in Istanbul. The dataset includes essential information such as invoice numbers, customer IDs, age, gender, payment methods, product categories, quantity, price, order dates, and shopping mall locations. We hope that this dataset will serve as a valuable resource for researchers, data analysts, and machine learning enthusiasts who want to gain insights into shopping trends and patterns in Istanbul. Explore the dataset and discover the fascinating world of Istanbul shopping!
+
+#### Variáveis 
+
+* invoice_no: Invoice number. Nominal. A combination of the letter 'I' and a 6-digit integer uniquely assigned to each operation.
+
+* customer_id: Customer number. Nominal. A combination of the letter 'C' and a 6-digit integer uniquely assigned to each operation.
+
+* gender: String variable of the customer's gender.
+
+* age: Positive Integer variable of the customers age.
+
+* category: String variable of the category of the purchased product.
+
+* quantity: The quantities of each product (item) per transaction. Numeric.
+
+* price: Unit price. Numeric. Product price per unit in Turkish Liras (TL).
+
+* payment_method: String variable of the payment method (cash, credit card or debit card) used for the transaction.
+
+* invoice_date: Invoice date. The day when a transaction was generated.
+
+* shopping_mall: String variable of the name of the shopping mall where the transaction was made.
+
+```{r}
+# Carrega o arquivo csv
+dados <- read_delim(
+  file = "https://www.ufrgs.br/wiki-r/images/3/3d/Customer_shopping_data.csv",
+  delim = ","
+) %>% 
+  mutate(
+    gender = factor(gender),
+    age = as.integer(age),
+    category = factor(category),
+    payment_method = factor(payment_method),
+    invoice_date = dmy(invoice_date),
+    shopping_mall = factor(shopping_mall) 
+  )
+
+# Dados originais
+dados %>% 
+  head(n = 15) %>% 
+  kable()
+```
+
+### Descritivas dos dados antes das transformações
+
+```{r}
+dados %>% 
+  skim()
+```
+
+#### Remoção de outliers
+
+Remoção do outliers superiores de `price`.
+
+```{r}
+dados <- dados %>% 
+  filter(
+    (price < quantile(price, 0.975))
+  )
+
+dados %>% 
+  skim()
+```
+
+## Engenharia de Variáveis (Feature Engineering)
+
+### Transformações $1:1$
+
+Uma variável é utilizada para criar outra variável. 
+
+```{r}
+dados <- dados %>% 
+  mutate(
+    # Padronizar variavel numerica
+    age_Pad = ((age - mean(age)) / sd(age)),
+    quantity_Pad = ((quantity - mean(quantity)) / sd(quantity)),
+    price_Pad = ((price - mean(price)) / sd(price)), 
+    
+    # Datas    
+    DiaDaSemana = invoice_date %>% 
+      weekdays() %>% 
+      factor(),
+    Mes = invoice_date %>% 
+      month() %>% 
+      factor(),
+    Trimestre = invoice_date %>% 
+      quarter() %>% 
+      factor(),
+    Semestre = invoice_date %>% 
+      semester() %>% 
+      factor(),
+    Ano = invoice_date %>%
+      year() %>% 
+      factor(),
+    Feriado = ifelse(
+      test = invoice_date %in% c(
+        "2020-09-10",
+        "2023-09-01",
+        "2019-07-01"
+      ),
+      yes = TRUE,
+      no = FALSE
+    ),
+    VesperaFeriado = ifelse(
+      test = invoice_date %in% c(
+        "2020-09-09",
+        "2023-08-31",
+        "2019-06-30"
+      ),
+      yes = TRUE,
+      no = FALSE
+    )
+  )
+
+# Exibe os dados
+dados %>% 
+  head(n = 15) %>% 
+  kable()
+```
+
+### Transformações $1:N$
+
+Uma variável é utilizada para criar $N$ variáveis. O exemplo é de one hot encoding, no qual variáveis categóricas geram variáveis dummies (0 ou 1).
+
+![](https://iq.opengenus.org/content/images/2022/01/TW5m0aJ.png)
+
+```{r}
+dados <- dados %>%
+  dummy_cols(
+    select_columns = c("gender", "category", "payment_method", "shopping_mall", "DiaDaSemana", "Mes", "Trimestre", "Semestre"),
+    remove_first_dummy = FALSE,
+    remove_most_frequent_dummy = FALSE,
+    remove_selected_columns = FALSE # Normalmente é TRUE, aqui estamos apresentando por partes para didática 
+  )
+
+# Exibe os dados
+dados %>% 
+  head(n = 15) %>% 
+  kable()
+```
+
+### Transformações $N:1$
+
+Quando $N$ variáveis dão origem a $1$ variável nova. No exemplo temos a variável `PrecoMedio` gerada pela divisão do `price` pela `quantity`. Nós também criamos a variável `PrecoMedio_Pad` contendo a variável `PrecoMedio` padronizada em $z-score$.
+
+Outro exemplo é com a interação entre variáveis independentes. Nesse caso $N$ são multiplicadas para dar origem a uma nova variável. As variáveis originais devem estar na mesma escala. No exemplo abaixo, a variável `PrecoMedio_Pad` é multiplicada por `age_Pad` criando a nova variável `price_Pad_x_age_Pad`.
+
+```{r}
+dados <- dados %>%
+  mutate(
+    PrecoMedio = (price / quantity),
+    PrecoMedio_Pad = (PrecoMedio - mean(PrecoMedio)) / sd(PrecoMedio),
+    PrecoMedio_Pad_x_age_Pad = (PrecoMedio_Pad * age_Pad),
+    Quantity_x_Mes1 = quantity * Mes_1
+  )
+
+# Exibe os dados
+dados %>% 
+  head(n = 15) %>% 
+  kable()
+```
+
+### Descritivas dos dados depois das transformações
+
+```{r}
+dados %>% 
+  skim()
+```
+
+## Transformações $N:N$ (PCA)
+
+$N$ variáveis dão origem a novas $N$ variáveis. Esse é o caso da técnica PCA (Principal Component Analysis) que simplifica a análise de dados, reduzindo sua dimensionalidade. Ele encontra novos eixos que maximizam a variabilidade dos dados e são ortogonais entre si. Esses novos eixos, chamados de componentes principais, representam uma projeção dos dados originais em um espaço de menor dimensão. O PCA é útil para visualização, remoção de ruídos, compressão de dados e preparação de dados para algoritmos de aprendizado de máquina.
+
+Na engenharia de variáveis, o PCA pode ser aplicado para combinar variáveis correlacionadas em um único componente, reduzindo a multicolinearidade. Também é útil para eliminar variáveis redundantes, simplificando modelos e os tornando mais interpretáveis. Além disso, o PCA pode ser empregado para identificar as características mais importantes de um conjunto de dados, selecionando apenas os componentes principais mais significativos, economizando recursos computacionais e melhorando a eficiência do processo de análise.
+
+### Dados para PCA
+
+```{r}
+# Dados para PCA
+dadosParaPCA <- dados %>% 
+  select(
+    ends_with("_Pad"),
+    starts_with("gender_"), 
+    starts_with("category_"), 
+    starts_with("payment_method_"),
+    starts_with("category_"), 
+    starts_with("shopping_mall_"), 
+    starts_with("DiaDaSemana_"), 
+    starts_with("Mes_"),
+    starts_with("Trimestre_"),
+    starts_with("Semestre_")
+  )
+```
+
+### Correlações
+
+```{r}
+# Atribui codigos para as variaveis
+codVariavel <- str_pad(
+  string = 1L:ncol(dadosParaPCA),
+  width = 2,
+  pad = "0"
+)
+
+# Tabela de codigos e variaveis
+variaveis <- tibble(
+  CodVariavel = codVariavel,
+  Variaveis = colnames(dadosParaPCA)
+)
+
+# Visualizar codigo e nome das variaveis
+variaveis %>% 
+  kable()
+```
+
+
+```{r, out.width = '100%', fig.align = 'center'}
+# Calcula correlacoes
+correlacoes <- cor(
+  x = dadosParaPCA %>% 
+    setNames(codVariavel),
+  method = "pearson"
+)
+
+# Testa de significancia
+testeSignificancia <- cor.mtest(
+  mat = dadosParaPCA %>% 
+    setNames(codVariavel), 
+  conf.level = 0.95
+)
+
+# Exibe grafico de correlacoes
+corrplot(
+  corr = correlacoes,
+  p.mat = testeSignificancia$p, 
+  method = "color", 
+  diag = FALSE, 
+  type = "upper",
+  sig.level = c(0.001, 0.01, 0.05), 
+  pch.cex = 0.3,
+  insig = "label_sig", 
+  pch.col = "black", 
+  order = "AOE",
+  tl.cex = 0.4
+)
+```
+
+### Cria modelo PCA
+
+```{r}
+# Modelo PCA
+modeloPCA <- prcomp(
+  x = dadosParaPCA
+)
+```
+
+#### Componentes principais
+
+Representação dos dados por componentes principais.
+
+```{r}
+# Primeiros registros apos a conversao em componentes principais
+modeloPCA$x %>% 
+  as_tibble() %>% 
+  head(
+    n = 15
+  ) %>% 
+  kable()
+```
+
+#### Importance of components
+
+Importância de cada componente principal.
+
+```{r}
+# Mostra componentes principais
+modeloPCA %>% 
+  summary()
+```
+
+#### Variância acumulada por componentes principais
+
+Podemos observar que os primeiros componentes principais concentram boa parte da variabilidade dos dados. No exemplo, a partir do componente principal 39 a variabilidade acumulada ja é de 100%. 
+
+```{r}
+modeloPCA %>% 
+  summary() %>% 
+  .$importance %>% 
+  as.data.frame() %>% 
+  rownames_to_column(
+    var = "Medida"
+  ) %>% 
+  as_tibble() %>% 
+  gather(
+    key = "PC",
+    value = "Valor",
+    -Medida
+  ) %>% 
+  mutate(
+    PC = str_extract(
+      string = PC,
+      pattern = "[:digit:]*$"
+    ) %>% 
+      str_pad(
+        width = 2L,
+        side = "left",
+        pad = "0"
+      ) %>% 
+      str_c("PC", .) %>% 
+      factor()
+  ) %>% 
+  spread(
+    key = Medida,
+    value = Valor
+  ) %>% 
+  filter(
+    `Cumulative Proportion` < 1
+  ) %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = PC,
+      y = `Proportion of Variance`
+    ),
+    stat = "identity"
+  ) +
+  geom_point(
+    aes(
+      x = PC,
+      y = `Cumulative Proportion`
+    )
+  ) +
+  geom_line(
+    aes(
+      x = PC,
+      y = `Cumulative Proportion`,
+      group = 1
+    )
+  ) +
+  xlab(
+    label = "Componentes principais"
+  ) +
+  ylab(
+    label = "Variância"
+  ) +
+  scale_y_continuous(
+    n.breaks = 10
+  ) +
+  theme(
+    axis.text.x = element_text(
+      size = 4
+    )
+  ) 
+```
+
+## Referências
+
+Duboue, P. (2020). The Art of Feature Engineering: Essentials for Machine Learning. Reino Unido: Cambridge University Press.
+
+Feature Engineering for Machine Learning and Data Analytics. (2018). Reino Unido: CRC Press.
+
+Kaufman, L. and Rousseeuw, P.J. (1990). Clustering Large Applications (Program CLARA). In Finding Groups in Data (eds L. Kaufman and P.J. Rousseeuw). https://doi.org/10.1002/9780470316801.ch3
+
+Kuhn, M., Johnson, K. (2019). Feature Engineering and Selection: A Practical Approach for Predictive Models. Reino Unido: CRC Press.

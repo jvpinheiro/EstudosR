@@ -1,0 +1,79 @@
+---
+title: "Multiple Pages"
+output: flexdashboard::flex_dashboard
+---
+
+```{r setup, include = FALSE}
+# Carrega pacotes
+library(tidyverse)
+library(DataExplorer)
+ 
+# Carrega base de dados
+data(iris)
+```
+Page 1
+=====================================  
+    
+Column {data-width=600}
+-------------------------------------
+    
+### Gráfico 1
+    
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Sepal.Length,
+  title = "Frequência por Sepal Length"
+)
+```
+   
+Column {data-width=400}
+-------------------------------------
+   
+### Gráfico 2 
+
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Sepal.Width,
+  title = "Frequência por Sepal Width"
+)
+```  
+
+### Gráfico 3
+    
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Petal.Length,
+  title = "Frequência por Petal Length"
+)
+```
+
+Page 2 {data-orientation=rows}
+=====================================     
+   
+Row {data-height=600}
+-------------------------------------
+
+### Gráfico 1
+
+```{r}
+plot_histogram(
+  data = iris$Petal.Width,
+  title = "Frequência por PetalWidth"
+)
+```
+
+Row {data-height=400}
+-------------------------------------
+
+### Gráfico 2
+
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Sepal.Width,
+  title = "Frequência por Sepal Width"
+)
+```

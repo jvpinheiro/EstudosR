@@ -1,0 +1,107 @@
+---
+title: "Aula Relatório"
+output: 
+  html_document: default
+---
+
+# Nível de título 1
+
+*Texto em itálico*
+
+**Texto em negrito**
+
+## Lista com níveis
+
+* Item 1
+* Item 2
+  + Item 2a
+  + Item 2b
+  
+## Lista ordenada   
+
+1. Item 1
+2. Item 2
+3. Item 3
+    + Item 3a
+    + Item 3b
+
+## Nível de título 2
+
+### Nível de título 3
+
+#### Nível de título 4
+
+##### Nível de título 5
+
+### Manual Line Breaks
+
+Roses are red,   
+Violets are blue.
+
+### Links
+
+http://example.com
+
+[linked phrase](http://example.com)
+
+### Images
+
+![alt text](http://example.com/logo.png)
+
+![alt text](figures/img.png)
+
+### Blockquotes
+
+A friend once said:
+
+> It's always better to give 
+> than to receive.
+
+### R Code Blocks
+
+```{r}
+summary(cars$dist)
+summary(cars$speed)
+```
+
+### Inline R Code
+
+There were `r nrow(cars)` cars studied
+
+```
+This text is displayed verbatim / preformatted
+```
+
+We defined the `add` function to 
+compute the sum of two numbers.
+
+$equation$
+
+$$ equation $$
+
+******
+
+------
+
+First Header  | Second Header
+------------- | -------------
+Content Cell  | Content Cell
+Content Cell  | Content Cell
+
+A [linked phrase][id]. 
+
+At the bottom of the document:
+
+[id]: http://example.com/ "Title"
+
+![alt text][id]
+
+At the bottom of the document:
+
+[id]: figures/img.png "Title"
+
+superscript^2^
+
+subscript~2~
+
+~~strikethrough~~
