@@ -1,0 +1,141 @@
+---
+title: "Exercício Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r include = FALSE}
+# Carrega pacotes
+library(plotly)
+library(tidyverse)
+library(lubridate)
+library(skimr)
+library(knitr)
+```
+
+```{r}
+dadosOriginais <- read_delim(
+  file = "https://www.ufrgs.br/wiki-r/images/0/06/Online_Retail_List_for_RFM.csv",
+  delim = ";"
+) %>% 
+  rename(
+    Customer = `Customer ID`
+  ) %>% 
+  mutate(
+    Ano = InvoiceDate %>% 
+      year(),
+    Periodo = InvoiceDate %>% 
+      str_sub(
+        start = 1L,
+        end = 7L
+      ),
+    ValorTotal = (Quantity * Price)
+  ) %>% 
+  filter(
+    Periodo != max(Periodo)
+  ) %>% 
+  mutate(
+    Periodo = Periodo %>% 
+      factor(
+        ordered = TRUE
+      )
+  )
+```
+
+# Estatísticas decritivas
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+  
+### Descritivas com skim
+
+```{r}
+dadosOriginais %>% 
+  skim()
+```   
+
+### Faturamento por ano
+    
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  group_by(Ano) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Ano)
+
+dadosGrafico %>% 
+  kable()
+```
+
+Problema dos dados. As datas iniciam em 2009-12-01 e a ultima data é em 2011-11-30. Ou seja, não é possível sumarizar por ano. Contudo, são dois anos, conforme segue:
+
+* 2009-12-01 até 2010-11-30: 1º ciclo
+* 2010-12-01 até 2011-11-30: 2º ciclo
+
+## Faturamento por ano - Corrigido
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  mutate(
+    Ciclo = case_when(
+      (InvoiceDate >= "2009-12-01") & (InvoiceDate <= "2010-11-30") ~ "1º ciclo",
+      (InvoiceDate >= "2010-12-01") & (InvoiceDate <= "2011-11-30") ~ "2º ciclo"
+    )
+  ) %>% 
+  group_by(Ciclo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Ciclo)
+
+dadosGrafico %>% 
+  kable()
+```
+
+# Gráficos ...
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### Linhas
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Ciclo,
+    y = ~Total,
+    type = "scatter",
+    mode = "lines"
+  )
+```
+
+
+# Pizza
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    labels = ~Ciclo,
+    values = ~Total,
+    type = "pie"
+  )
+```
+
+# Histograma
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Total,
+    y = ~Ciclo,
+    type = "histogram"
+  )
+```

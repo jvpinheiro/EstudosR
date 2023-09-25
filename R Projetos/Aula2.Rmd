@@ -1,0 +1,25 @@
+---
+title: "Aula 2"
+output: html_document
+date: "2023-09-06"
+---
+
+## Carrega dados
+
+```{r include=FALSE}
+# Cria uma base de dados amostral
+saldoClientes <- data.frame(
+  Cod = 1:100,
+  Saldo = sample(
+    x = -200:10000,
+    size = 300,
+    replace = FALSE
+  )
+)
+```
+
+### Primeiros 6 registros
+
+```{r echo=FALSE}
+head(saldoClientes)
+```

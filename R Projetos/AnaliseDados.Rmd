@@ -1,0 +1,346 @@
+---
+title: "Análise de dados - Online_Retail_List_for_RFM"
+output: 
+  html_document: 
+  theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r include = FALSE}
+# install.packages("plotly")
+
+# Carrega pacotes
+library(plotly)
+library(tidyverse)
+library(lubridate)
+library(skimr)
+library(knitr)
+```
+
+```{r}
+dadosOriginais <- read_delim(
+  file = "https://www.ufrgs.br/wiki-r/images/0/06/Online_Retail_List_for_RFM.csv",
+  delim = ";"
+) %>% 
+  rename(
+    Customer = `Customer ID`
+  ) %>% 
+  mutate(
+    Ano = InvoiceDate %>% 
+      year(),
+    Periodo = InvoiceDate %>% 
+      str_sub(
+        start = 1L,
+        end = 7L
+      ),
+    ValorTotal = (Quantity * Price)
+  ) %>% 
+  filter(
+    Periodo != max(Periodo)
+  ) %>% 
+  mutate(
+    Periodo = Periodo %>% 
+      factor(
+        ordered = TRUE
+      )
+  )
+```
+
+## Análise descritiva
+
+```{r}
+dadosOriginais %>% 
+  skim()
+```
+
+## Faturamento por ano
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  group_by(Ano) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Ano)
+
+dadosGrafico %>% 
+  kable()
+```
+
+Problema dos dados. As datas iniciam em 2009-12-01 e a ultima data é em 2011-11-30. Ou seja, não é possível sumarizar por ano. Contudo, são dois anos, conforme segue:
+
+* 2009-12-01 até 2010-11-30: 1º ciclo
+* 2010-12-01 até 2011-11-30: 2º ciclo
+
+## Faturamento por ano - Corrigido
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  mutate(
+    Ciclo = case_when(
+      (InvoiceDate >= "2009-12-01") & (InvoiceDate <= "2010-11-30") ~ "1º ciclo",
+      (InvoiceDate >= "2010-12-01") & (InvoiceDate <= "2011-11-30") ~ "2º ciclo"
+    )
+  ) %>% 
+  group_by(Ciclo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Ciclo)
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Faturamento por ciclo - Corrigido - Gráfico barras
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Ciclo,
+    y = ~Total,
+    type = "bar"
+  )
+```
+
+## Faturamento por ciclo - Corrigido - Gráfico linhas
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Ciclo,
+    y = ~Total,
+    type = "scatter",
+    mode = "lines"
+  )
+```
+
+
+## Faturamento por ciclo - Percentual
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  mutate(
+    Ciclo = case_when(
+      (InvoiceDate >= "2009-12-01") & (InvoiceDate <= "2010-11-30") ~ "1º ciclo",
+      (InvoiceDate >= "2010-12-01") & (InvoiceDate <= "2011-11-30") ~ "2º ciclo"
+    )
+  ) %>% 
+  group_by(Ciclo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Ciclo) %>% 
+  mutate(
+    GanhoFaturamento = ((Total / lag(Total)) - 1) * 100
+  ) %>% 
+  filter(
+    !is.na(GanhoFaturamento)
+  )
+
+dadosGrafico %>% 
+  kable()
+```
+
+O `r ifelse(dadosGrafico$GanhoFaturamento > 1, "ganho", "perda")` de faturamento foi de `r round(dadosGrafico$GanhoFaturamento, 2)`%.
+
+## Faturamento por mês
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  group_by(Periodo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Periodo)
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Faturamento por mês - linhas
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Periodo,
+    y = ~Total,
+    type = "scatter",
+    mode = "lines"
+  )
+```
+
+## Preço médio por mês
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  group_by(Periodo) %>% 
+  summarise(
+    Media = mean(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Periodo)
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Preço médio por mês - linhas
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Periodo,
+    y = ~Media,
+    type = "scatter",
+    mode = "lines"
+  )
+```
+
+
+## Total faturamento por mês sem outliers e devolucoes
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  mutate(
+    Devolucao = str_extract(Invoice, "[:alpha:]"),
+    Devolucao = (Devolucao == "C")
+  ) %>%
+  filter(
+    ValorTotal >= quantile(ValorTotal, 0.01),
+    ValorTotal <= quantile(ValorTotal, 0.99),
+    is.na(Devolucao)
+  ) %>% 
+  group_by(Periodo) %>% 
+  summarise(
+    Media = mean(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(Periodo)
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Preço médio por mês - linhas
+
+```{r}
+dadosGrafico %>% 
+  plot_ly(
+    x = ~Periodo,
+    y = ~Media,
+    type = "scatter",
+    mode = "lines"
+  )
+```
+
+## Total faturamento por país sem outliers e devoluções
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  mutate(
+    Devolucao = str_extract(Invoice, "[:alpha:]"),
+    Devolucao = (Devolucao == "C")
+  ) %>%
+  filter(
+    ValorTotal >= quantile(ValorTotal, 0.01),
+    ValorTotal <= quantile(ValorTotal, 0.99),
+    is.na(Devolucao)
+  ) %>% 
+  group_by(Country) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(desc(Total)) %>% 
+  mutate(
+    Perc = round((Total / sum(Total) * 100), 2),
+    PercAcum = cumsum(Perc)
+  )
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Total faturamento por país sem outliers e devoluções - sem o United Kingdom	
+
+```{r}
+dadosGrafico <- dadosOriginais %>% 
+  filter(
+    (Country != "United Kingdom")
+  ) %>% 
+  mutate(
+    Devolucao = str_extract(Invoice, "[:alpha:]"),
+    Devolucao = (Devolucao == "C")
+  ) %>%
+  filter(
+    ValorTotal >= quantile(ValorTotal, 0.01),
+    ValorTotal <= quantile(ValorTotal, 0.99),
+    is.na(Devolucao)
+  ) %>% 
+  group_by(Country) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup() %>% 
+  arrange(desc(Total)) %>% 
+  mutate(
+    Country = fct_reorder(
+      .f = Country,
+      .x = desc(Total)
+    ),
+    Perc = round((Total / sum(Total) * 100), 2),
+    PercAcum = cumsum(Perc),
+    PercQtdPaises = (row_number() / n() * 100)
+  )
+
+dadosGrafico %>% 
+  kable()
+```
+
+## Gráfico pareto 
+
+Total faturamento por país sem outliers e devoluções - sem o United Kingdom	
+
+```{r}
+dadosGrafico %>% 
+  ggplot() +
+  geom_bar(
+    aes(
+      x = Country,
+      y = Perc
+    ),
+    stat = "identity"
+  ) +
+  geom_line(
+    aes(
+      x = Country,
+      y = PercAcum,
+      group = ""
+    )
+  ) +
+  geom_point(
+    aes(
+      x = Country,
+      y = PercAcum,
+      group = ""
+    )
+  ) +
+  theme(
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1
+    )
+  ) +
+  scale_y_continuous(
+    n.breaks = 10
+  )
+```
+

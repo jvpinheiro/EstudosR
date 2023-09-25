@@ -1,0 +1,494 @@
+---
+title: "Data Science - Coleta de dados"
+output: 
+  html_document: 
+  theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Preparação
+
+Pacotes
+
+```{r}
+# install.packages("httr", dependencies = TRUE)
+# install.packages("jsonlite", dependencies = TRUE)
+# install.packages("lubridate", dependencies = TRUE)
+# install.packages("tmap", dependencies = TRUE)
+# install.packages("sf", dependencies = TRUE)
+# install.packages("tm", dependencies = TRUE)
+# install.packages("tidytext", dependencies = TRUE)
+# install.packages("wordcloud", dependencies = TRUE)
+# install.packages("tidytext", dependencies = TRUE)
+
+# Carrega pacote
+library(httr)
+library(jsonlite)
+library(lubridate)
+library(tmap)
+library(sf)
+library(tm)
+library(tidytext)
+library(wordcloud)
+library(knitr)
+library(tidyverse)
+```
+
+## Localização da International Space Station (ISS)
+
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/International_Space_Station_after_undocking_of_STS-132.jpg/1600px-International_Space_Station_after_undocking_of_STS-132.jpg)
+
+### Busca posição atual (json)
+
+Informação vem no formato json.
+
+```{r}
+# Busca posicao atual da ISS
+posicaoAtualJson <- GET(
+  url = "http://api.open-notify.org/iss-now.json"
+)
+
+# json
+prettify(posicaoAtualJson)
+```
+
+### Converte json para objeto list e para tabela
+
+```{r}
+posicaoAtual <- fromJSON(
+  txt = rawToChar(
+    x = posicaoAtualJson$content
+  )
+)
+
+posicaoAtual
+
+# Posicao da ISS em tabela
+posicaoAtual <- posicaoAtual %>% 
+  as.data.frame() %>% 
+  as_tibble()
+
+posicaoAtual %>% 
+  kable()
+```
+
+### Local da ISS no mapa mundi
+
+```{r}
+data(World)
+
+# Posicao no mapa
+localizacaoISS <- st_as_sf(
+  x = posicaoAtual,
+  coords = c(
+    "iss_position.longitude", 
+    "iss_position.latitude"
+  ),
+  crs = 4326
+)
+
+# Plotting the ISS position
+World %>% 
+  tm_shape() +
+  tm_borders() +
+  tm_shape(
+    shp = localizacaoISS
+  ) +
+  tm_dots(
+    size = 0.5,
+    col = "orange"
+  )
+```
+
+## Manipulação de dados
+
+### Carga e preparação dos dados para atividades
+
+```{r}
+# Carrega o arquivo csv
+dadosOriginais <- read_delim(
+  file = "https://www.ufrgs.br/wiki-r/images/0/06/Online_Retail_List_for_RFM.csv",
+  delim = ";"
+) %>% 
+  rename(
+    Customer = `Customer ID`
+  ) %>% 
+  mutate(
+    Ano = InvoiceDate %>% 
+      year(),
+    Periodo = InvoiceDate %>% 
+      str_sub(
+        start = 1L,
+        end = 7L
+      ),
+    ValorTotal = (Quantity * Price)
+  ) %>% 
+  filter(
+    Periodo != max(Periodo)
+  ) %>% 
+  mutate(
+    Periodo = Periodo %>% 
+      factor(
+        ordered = TRUE
+      )
+  )
+
+# Amostra dos dados
+dadosOriginais %>% 
+  head() %>% 
+  kable()
+```
+
+Separa em outra tabela os dados do cliente.
+
+```{r}
+# Dados clientes
+dadosClientes <- dadosOriginais %>% 
+  distinct(Customer, Country) %>% 
+  arrange_all()
+
+# Amostra dos dados
+dadosClientes %>% 
+  head() %>% 
+  kable()
+```
+
+Separa em outra tabela os dados do produto.
+
+```{r}
+# Dados produtos
+dadosProdutos <- dadosOriginais %>% 
+  distinct(StockCode, Description) %>% 
+  arrange_all()
+
+# Amostra dos dados
+dadosProdutos %>% 
+  head() %>% 
+  kable()
+```
+
+Separa em outra tabela os dados de transações.
+
+```{r}
+# Dados transacoes por invoice/stockcode
+dadosTransacoes <- dadosOriginais %>% 
+  select(Invoice, StockCode, InvoiceDate, Periodo, Customer, Quantity, Price, ValorTotal) 
+
+# Amostra dos dados
+dadosTransacoes %>% 
+  head() %>% 
+  kable()
+```
+
+Separa em outra tabela os dados de totais invoice
+
+```{r}
+# Dados totais por invoice
+dadosTotaisInvoice <- dadosTransacoes %>% 
+  group_by(Invoice, InvoiceDate, Periodo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup()
+
+# Amostra dos dados
+dadosTotaisInvoice %>% 
+  head() %>% 
+  kable()
+```
+
+Totais por Período
+
+```{r}
+# Dados totais por invoice
+dadosTotaisInvoice <- dadosTransacoes %>% 
+  group_by(Periodo) %>% 
+  summarise(
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup()
+
+# Amostra dos dados
+dadosTotaisInvoice %>% 
+  head() %>% 
+  kable()
+```
+
+Separa em outra tabela os dados do período
+
+```{r}
+# Dados totais por periodo
+dadosTotaisPeriodo <- dadosTotaisInvoice %>% 
+  group_by(Periodo) %>% 
+  summarise(
+    Total = sum(Total)
+  ) %>% 
+  ungroup()
+
+# Amostra dos dados
+dadosTotaisPeriodo %>% 
+  head() %>% 
+  kable()
+```
+
+### Renomear colunas
+
+```{r}
+# Ver o nome dadas colunas
+dadosClientes %>% 
+  colnames()
+
+# Ajusta colunas
+dadosClientes <- dadosClientes %>% 
+  rename(
+    Cliente = Customer,
+    Pais = Country
+  )
+
+# Ver o nome dadas colunas
+dadosClientes %>% 
+  colnames()
+```
+
+### Criar novas colunas
+
+```{r}
+# Ver o nome dadas colunas
+dadosTransacoes <- dadosTransacoes %>% 
+  mutate(
+    Ano = year(InvoiceDate),
+    Semestre = semester(InvoiceDate, with_year = TRUE),
+    Trimestre = quarter(InvoiceDate, with_year = TRUE)
+  )
+
+# Amostra dos dados
+dadosTransacoes %>% 
+  head() %>% 
+  kable()
+```
+
+### Criar categoria de produtos
+
+Cria uma categorização dos produtos a partir da descrição.
+
+```{r}
+# Função para normalizar texto
+NormalizaParaTextMining <- function(texto){
+  
+  # Normaliza texto
+  texto %>% 
+    chartr(
+      old = "áéíóúÁÉÍÓÚýÝàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛãõÃÕñÑäëïöüÄËÏÖÜÿçÇ´`^~¨:.!?&$@#0123456789",
+      new = "aeiouAEIOUyYaeiouAEIOUaeiouAEIOUaoAOnNaeiouAEIOUycC                       ",
+      x = .
+    ) %>% # Elimina acentos e caracteres desnecessarios
+    str_squish() %>% # Elimina espacos excedentes 
+    tolower() %>% # Converte para minusculo
+    return() # Retorno da funcao
+}
+
+# Lista de palavras para remover
+palavrasRemover <- c(
+  stopwords(kind = "en"), 
+  letters,
+  c(
+    "white", "black", "orange", "maroon", "red", "yellow", "green","blue",
+    "grey", "purple", "violet", "magenta", "brown", "pink", "beige", "cyan", "silver"
+  ),
+  c(
+    "set", "small", "metal", "large", "tin", "mini", "pack"
+  )
+) %>%
+  as.tibble() %>% 
+  rename(
+    Palavra = value
+  ) %>% 
+  mutate(
+    Palavra = NormalizaParaTextMining(Palavra)
+  )
+
+# Dadis de produtos por palavra
+dadosProdutosPorPalavra <- dadosProdutos %>% 
+  unnest_tokens(
+    output = Palavra, 
+    input = Description
+  ) %>% 
+  mutate(
+    Palavra = NormalizaParaTextMining(Palavra)
+  ) %>% 
+  anti_join(
+    palavrasRemover,
+    by = "Palavra"
+  ) 
+
+# Contagem dadas palavras
+contagem <- dadosProdutosPorPalavra %>% 
+  count(
+    Palavra, 
+    sort = TRUE,
+    name = "Frequencia"
+  ) %>% 
+  filter(
+    Palavra != ""
+  ) %>% 
+  mutate(
+    Perc = Frequencia / sum(Frequencia) * 100,
+    PercAcum = cumsum(Perc)
+  )
+
+# Categorias por produto
+dadosProdutosCategorias <- dadosProdutosPorPalavra %>% 
+  left_join(
+    contagem %>% 
+      transmute(
+        Palavra,
+        Categoria = Palavra,
+        Frequencia
+      ),
+    by = "Palavra"
+  ) %>% 
+  arrange(StockCode, desc(Frequencia)) %>% 
+  group_by(StockCode) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  select(StockCode, Categoria)
+
+# Exibe amostra
+dadosProdutosCategorias %>% 
+  head() %>% 
+  kable()
+```
+
+### Mudar ordem dos dados
+
+```{r}
+# Ordenar por pais
+dadosClientes %>% 
+  arrange(Pais) %>% 
+  head() %>% 
+  kable()
+
+# Ordenar decrescente por pais
+dadosClientes %>% 
+  arrange(desc(Pais)) %>% 
+  head() %>% 
+  kable()
+```
+
+### Filtrando registros
+
+Alguns filtros diferentes.
+
+```{r}
+# Filtros 
+dadosTransacoes %>% 
+  filter(
+    Ano %in% c(2010, 2011),
+    near(ValorTotal, 50, tol = 5)
+  ) %>% 
+  head() %>% 
+  kable()
+```
+
+### Agrupamento para sumarização
+
+Descritivas por ano
+
+```{r}
+dadosTransacoes %>% 
+  group_by(Ano) %>% 
+  summarise(
+    Media = mean(ValorTotal),
+    Total = sum(ValorTotal)
+  ) %>% 
+  ungroup()
+```
+
+### Juntando tabelas
+
+Totalizando por categoria de produto.
+
+```{r}
+totaisCategoria <- dadosTransacoes %>% 
+  left_join(
+    dadosProdutosCategorias,
+    by = "StockCode"
+  ) %>% 
+  group_by(Categoria) %>% 
+  summarise(
+    Total = sum(ValorTotal) 
+  ) %>% 
+  ungroup() %>% 
+  arrange(desc(Total))
+
+# Exibe amostra
+totaisCategoria %>% 
+  head(  
+    n = 10
+  ) %>% 
+  kable()
+```
+
+### Filtros com join
+
+Transacoes das 10 principais categorias de produtos.
+
+```{r}
+# Principais categorias
+principaisCategorias <- totaisCategoria %>% 
+  slice(1:10) %>% 
+  pull(Categoria)
+
+# Somente invoice das principais categorias
+dadosTransacoes %>% 
+  semi_join(
+    dadosTransacoes %>% 
+      select(Invoice, StockCode) %>% 
+      left_join(
+        dadosProdutosCategorias,
+        by = "StockCode"
+      ) %>% 
+      filter(
+        Categoria %in% principaisCategorias
+      ),
+    by = "Invoice"
+  )
+```
+
+### Pivotar dados wider
+
+```{r}
+dadosWider <- dadosTransacoes %>% 
+  select(Trimestre, ValorTotal) %>% 
+  group_by(Trimestre) %>% 
+  summarise(
+    Total = sum(Trimestre )
+  ) %>% 
+  ungroup() %>% 
+  pivot_wider(
+    names_from = Trimestre,
+    values_from = Total,
+    names_sort = TRUE
+  )
+
+dadosWider %>% 
+  kable()
+```
+
+### Pivotar dados longer
+
+```{r}
+dadosWider %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = "Trimestre",
+    values_to = "Total"
+  )
+```
+
+## Referências
+
+<https://www.nasa.gov/mission_pages/station/main/index.html>

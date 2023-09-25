@@ -1,0 +1,60 @@
+---
+title: "Exemplo dashboard 5"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r setup, include = FALSE}
+# Carrega pacotes
+library(tidyverse)
+library(DataExplorer)
+
+# Carrega base de dados
+data(iris)
+```
+
+Row
+-------------------------------------
+     
+### Gráfico 1
+     
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Sepal.Length,
+  title = "Frequência por Sepal Length"
+)
+```
+  
+### Gráfico 2
+
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Sepal.Width,
+  title = "Frequência por Sepal Width"
+)
+```   
+ 
+Row
+-------------------------------------
+
+### Gráfico 3
+    
+```{r}
+# Exibe o histograma
+plot_histogram(
+  data = iris$Petal.Length,
+  title = "Frequência por Petal Length"
+)
+```
+
+### Gráfico 4
+
+```{r}
+plot_histogram(
+  data = iris$Petal.Width,
+  title = "Frequência por PetalWidth"
+)
+```
